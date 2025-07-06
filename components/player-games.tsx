@@ -14,6 +14,20 @@ interface PlayerGamesProps {
   onGameStart: (gameId: string) => void
 }
 
+const getGameTypeDisplay = (gameType?: string) => {
+  switch (gameType) {
+    case "individual":
+      return "Хувь сонгол"
+    case "voting":
+      return "Санал хураалт"
+    case "team":
+      return "Багийн тоглоом"
+    case "classic":
+    default:
+      return "Санал хураалт"
+  }
+}
+
 export function PlayerGames({ onGameStart }: PlayerGamesProps) {
   const { user } = useAuth()
   const [myGames, setMyGames] = useState<Game[]>([])
@@ -99,10 +113,15 @@ export function PlayerGames({ onGameStart }: PlayerGamesProps) {
                         </CardDescription>
                       </div>
                     </div>
-                    <Badge className={`${status.color} text-white text-xs flex items-center gap-1`}>
-                      <StatusIcon className="h-3 w-3" />
-                      {status.text}
-                    </Badge>
+                    <div className="flex flex-col gap-1 items-end">
+                      <Badge className={`${status.color} text-white text-xs flex items-center gap-1`}>
+                        <StatusIcon className="h-3 w-3" />
+                        {status.text}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-300">
+                        {getGameTypeDisplay(game.gameType)}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
 
