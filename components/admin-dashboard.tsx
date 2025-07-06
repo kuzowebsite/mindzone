@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/hooks/use-auth"
 import { useGame } from "@/hooks/use-game"
-import { ref, onValue, update } from "firebase/database"
+import { ref, onValue, update, remove } from "firebase/database"
 import { database } from "@/lib/firebase"
 import type { Game, WithdrawalRequest, DepositRequest } from "@/lib/types"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Settings,
   Plus,
@@ -34,6 +35,11 @@ import {
   ArrowDownCircle,
   Vote,
   UserCheck,
+  Trash2,
+  AlertTriangle,
+  Eye,
+  Clock,
+  Target,
 } from "lucide-react"
 
 export function AdminDashboard() {
@@ -65,6 +71,10 @@ export function AdminDashboard() {
   const [individualLoading, setIndividualLoading] = useState(false)
   const [activeSection, setActiveSection] = useState<"games" | "withdrawals" | "deposits">("games")
   const [copiedItems, setCopiedItems] = useState<Record<string, boolean>>({})
+  const [deletingGames, setDeletingGames] = useState<Record<string, boolean>>({})
+
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null)
+  const [gameDetailsOpen, setGameDetailsOpen] = useState(false)
 
   // Listen to all games
   useEffect(() => {
@@ -228,6 +238,29 @@ export function AdminDashboard() {
     }
   }
 
+  const handleDeleteGame = async (gameId: string, gameName: string) => {
+    const confirmDelete = window.confirm(
+      `Та "${gameName}" тоглоомыг устгахдаа итгэлтэй байна уу?\n\nЭнэ үйлдлийг буцаах боломжгүй!`,
+    )
+
+    if (!confirmDelete) return
+
+    setDeletingGames((prev) => ({ ...prev, [gameId]: true }))
+
+    try {
+      // Remove game from database
+      const gameRef = ref(database, `games/${gameId}`)
+      await remove(gameRef)
+
+      alert("Тоглоом амжилттай устгагдлаа!")
+    } catch (error) {
+      console.error("Тоглоом устгахад алдаа гарлаа:", error)
+      alert("Тоглоом устгахад алдаа гарлаа")
+    } finally {
+      setDeletingGames((prev) => ({ ...prev, [gameId]: false }))
+    }
+  }
+
   const handleProcessWithdrawal = async (requestId: string, playerUid: string, amount: number) => {
     try {
       // Update withdrawal request status
@@ -343,6 +376,16 @@ export function AdminDashboard() {
       default:
         return { text: "Санлын", color: "bg-purple-500", icon: Vote }
     }
+  }
+
+  const canDeleteGame = (game: Game) => {
+    // Can only delete games that are scheduled or waiting (not started yet)
+    return game.status === "scheduled" || game.status === "waiting"
+  }
+
+  const handleViewGameDetails = (game: Game) => {
+    setSelectedGame(game)
+    setGameDetailsOpen(true)
   }
 
   return (
@@ -753,6 +796,8 @@ export function AdminDashboard() {
                       const gameType = getGameType(game)
                       const playerCount = game.players ? Object.keys(game.players).length : 0
                       const GameTypeIcon = gameType.icon
+                      const canDelete = canDeleteGame(game)
+                      const isDeleting = deletingGames[game.id]
 
                       return (
                         <div key={game.id} className="gaming-card p-4 rounded-lg">
@@ -765,8 +810,35 @@ export function AdminDashboard() {
                               </Badge>
                               <span className="text-amber-300 font-semibold text-sm">ID: {game.id.slice(-6)}</span>
                             </div>
-                            <div className="text-amber-400 text-xs">
-                              {new Date(game.createdAt).toLocaleDateString("mn-MN")}
+                            <div className="flex items-center gap-2">
+                              <div className="text-amber-400 text-xs">
+                                {new Date(game.createdAt).toLocaleDateString("mn-MN")}
+                              </div>
+                              <Button
+                                onClick={() => handleViewGameDetails(game)}
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0 border-blue-500/30 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              {canDelete && (
+                                <Button
+                                  onClick={() =>
+                                    handleDeleteGame(game.id, `${gameType.text} тоглоом (${game.id.slice(-6)})`)
+                                  }
+                                  disabled={isDeleting}
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-8 p-0 border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-300"
+                                >
+                                  {isDeleting ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border border-red-400 border-t-transparent"></div>
+                                  ) : (
+                                    <Trash2 className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           </div>
 
@@ -790,6 +862,13 @@ export function AdminDashboard() {
                               </span>
                             </div>
                           </div>
+
+                          {!canDelete && (
+                            <div className="mt-3 flex items-center gap-2 text-xs text-amber-500">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Эхэлсэн эсвэл дууссан тоглоомыг устгах боломжгүй</span>
+                            </div>
+                          )}
                         </div>
                       )
                     })
@@ -1215,6 +1294,282 @@ export function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Game Details Dialog */}
+      <Dialog open={gameDetailsOpen} onOpenChange={setGameDetailsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto dark-premium">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-amber-300 flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Тоглоомын дэлгэрэнгүй мэдээлэл
+            </DialogTitle>
+            <DialogDescription className="text-amber-400">
+              {selectedGame && `${getGameType(selectedGame).text} тоглоом - ID: ${selectedGame.id.slice(-6)}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedGame && (
+            <div className="space-y-6">
+              {/* Game Overview */}
+              <Card className="premium-card">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold text-amber-300 flex items-center gap-2">
+                    <Gamepad2 className="h-5 w-5" />
+                    Тоглоомын ерөнхий мэдээлэл
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="stats-card p-3 text-center rounded-lg">
+                      <div className="text-lg font-bold text-blue-400">
+                        {selectedGame.players ? Object.keys(selectedGame.players).length : 0}
+                      </div>
+                      <div className="text-xs text-blue-300">Нийт тоглогч</div>
+                    </div>
+                    <div className="stats-card p-3 text-center rounded-lg">
+                      <div className="text-lg font-bold text-green-400">
+                        {selectedGame.players
+                          ? Object.values(selectedGame.players).filter((p) => !p.isEliminated).length
+                          : 0}
+                      </div>
+                      <div className="text-xs text-green-300">Үлдсэн</div>
+                    </div>
+                    <div className="stats-card p-3 text-center rounded-lg">
+                      <div className="text-lg font-bold text-purple-400">{selectedGame.currentRound || 0}</div>
+                      <div className="text-xs text-purple-300">Одоогийн шат</div>
+                    </div>
+                    <div className="stats-card p-3 text-center rounded-lg">
+                      <div className="text-lg font-bold text-amber-400">{selectedGame.prizePool.toLocaleString()}₮</div>
+                      <div className="text-xs text-amber-300">Шагналын сан</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-amber-200">Төлөв:</span>
+                        <Badge className={`${getGameStatus(selectedGame).color} text-white text-xs`}>
+                          {getGameStatus(selectedGame).text}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-amber-200">Тасалбарын үнэ:</span>
+                        <span className="text-amber-300 font-semibold">
+                          {selectedGame.ticketPrice.toLocaleString()}₮
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-amber-200">Үүсгэсэн:</span>
+                        <span className="text-amber-300">
+                          {new Date(selectedGame.createdAt).toLocaleString("mn-MN")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-amber-200">Нэгдэх хугацаа:</span>
+                        <span className="text-amber-300">
+                          {new Date(selectedGame.joinOpenTime).toLocaleString("mn-MN")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-amber-200">Тасалбар авах хугацаа:</span>
+                        <span className="text-amber-300">
+                          {new Date(selectedGame.ticketPurchaseDeadline).toLocaleString("mn-MN")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-amber-200">Эхлэх хугацаа:</span>
+                        <span className="text-amber-300">
+                          {new Date(selectedGame.scheduledStartTime).toLocaleString("mn-MN")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Current Challenge */}
+              {selectedGame.currentChallenge && (
+                <Card className="premium-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-bold text-amber-300 flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Одоогийн даалгавар
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="gaming-card p-4 rounded-lg border border-amber-500/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-amber-300 font-semibold">{selectedGame.currentChallenge.title}</h3>
+                          <Badge className="bg-purple-500 text-white text-xs">
+                            {selectedGame.currentChallenge.type === "quiz"
+                              ? "Асуулт"
+                              : selectedGame.currentChallenge.type === "logic"
+                                ? "Логик"
+                                : "Нийгэм"}
+                          </Badge>
+                        </div>
+                        <p className="text-amber-200 text-sm mb-3">{selectedGame.currentChallenge.description}</p>
+                        <div className="bg-gray-800/50 p-3 rounded-lg">
+                          <p className="text-white font-medium">{selectedGame.currentChallenge.question}</p>
+                          {selectedGame.currentChallenge.options && (
+                            <div className="mt-2 space-y-1">
+                              {selectedGame.currentChallenge.options.map((option, index) => (
+                                <div key={index} className="text-amber-200 text-sm">
+                                  {String.fromCharCode(65 + index)}. {option}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {selectedGame.currentChallenge.correctAnswer && (
+                          <div className="mt-2 text-green-400 text-sm">
+                            <strong>Зөв хариулт:</strong> {selectedGame.currentChallenge.correctAnswer}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Challenge Submissions */}
+                      {selectedGame.challengeSubmissions && (
+                        <div className="space-y-2">
+                          <h4 className="text-amber-300 font-semibold">Хариултууд:</h4>
+                          <div className="max-h-40 overflow-y-auto space-y-2">
+                            {Object.entries(selectedGame.challengeSubmissions).map(([playerId, submission]) => {
+                              const player = selectedGame.players?.[playerId]
+                              return (
+                                <div key={playerId} className="gaming-card p-2 rounded border border-gray-700">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-amber-200 text-sm">{player?.displayName || "Тоглогч"}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-amber-300 text-sm">{submission.answer}</span>
+                                      <Badge
+                                        className={`text-xs ${submission.isCorrect ? "bg-green-500" : "bg-red-500"} text-white`}
+                                      >
+                                        {submission.isCorrect ? "Зөв" : "Буруу"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Players List */}
+              <Card className="premium-card">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold text-amber-300 flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Тоглогчдын жагсаалт
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {selectedGame.players ? (
+                      Object.values(selectedGame.players)
+                        .sort((a, b) => b.score - a.score)
+                        .map((player) => (
+                          <div key={player.uid} className="gaming-card p-3 rounded-lg border border-amber-500/20">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="coin-icon w-8 h-8 flex items-center justify-center">
+                                  <div className="w-full h-full bg-amber-500 rounded-full flex items-center justify-center text-black font-bold text-xs">
+                                    {player.displayName.charAt(0).toUpperCase()}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-amber-300">{player.displayName}</div>
+                                  <div className="text-xs text-amber-400">#{player.playerId}</div>
+                                </div>
+                                {player.uid === selectedGame.hostId && (
+                                  <Badge className="bg-blue-500 text-white text-xs">Хост</Badge>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <div className="text-amber-300 font-semibold">{player.score} оноо</div>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    player.isEliminated
+                                      ? "text-red-400 border-red-400"
+                                      : "text-green-400 border-green-400"
+                                  }`}
+                                >
+                                  {player.isEliminated ? "Хасагдсан" : "Идэвхтэй"}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                    ) : (
+                      <div className="text-center py-4 text-amber-400">
+                        <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Тоглогч байхгүй байна</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Game Timeline */}
+              <Card className="premium-card">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold text-amber-300 flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Тоглоомын хуваарь
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-3 h-3 rounded-full ${Date.now() >= selectedGame.joinOpenTime ? "bg-green-500" : "bg-gray-500"}`}
+                      ></div>
+                      <div className="flex-1">
+                        <div className="text-amber-300 font-medium">Нэгдэх хугацаа эхэлсэн</div>
+                        <div className="text-amber-400 text-sm">
+                          {new Date(selectedGame.joinOpenTime).toLocaleString("mn-MN")}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-3 h-3 rounded-full ${Date.now() >= selectedGame.ticketPurchaseDeadline ? "bg-green-500" : "bg-gray-500"}`}
+                      ></div>
+                      <div className="flex-1">
+                        <div className="text-amber-300 font-medium">Тасалбар авах хугацаа дууссан</div>
+                        <div className="text-amber-400 text-sm">
+                          {new Date(selectedGame.ticketPurchaseDeadline).toLocaleString("mn-MN")}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-3 h-3 rounded-full ${Date.now() >= selectedGame.scheduledStartTime ? "bg-green-500" : "bg-gray-500"}`}
+                      ></div>
+                      <div className="flex-1">
+                        <div className="text-amber-300 font-medium">Тоглоом эхэлсэн</div>
+                        <div className="text-amber-400 text-sm">
+                          {new Date(selectedGame.scheduledStartTime).toLocaleString("mn-MN")}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
