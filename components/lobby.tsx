@@ -7,10 +7,23 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/hooks/use-auth"
 import { useGame } from "@/hooks/use-game"
-import { ref, onValue } from "firebase/database"
+import { useCustomAlert } from "@/components/ui/custom-alert"
+import { ref, onValue, update } from "firebase/database"
 import { database } from "@/lib/firebase"
 import type { Player, Game } from "@/lib/types"
-import { Trophy, ShoppingCart, User, Target, Star, Gamepad2, Timer, AlertTriangle, Crown, Zap } from "lucide-react"
+import {
+  Trophy,
+  ShoppingCart,
+  User,
+  Target,
+  Star,
+  Gamepad2,
+  Timer,
+  AlertTriangle,
+  Crown,
+  Zap,
+  Wallet,
+} from "lucide-react"
 import { BottomNavigation } from "./bottom-navigation"
 import { PlayerGames } from "./player-games"
 import { PlayerProfile } from "./player-profile"
@@ -36,8 +49,9 @@ interface LobbyProps {
 }
 
 export function Lobby({ onGameStart }: LobbyProps) {
-  const { user, userProfile } = useAuth()
+  const { user, userProfile, updateUserProfile } = useAuth()
   const { joinGame } = useGame(null)
+  const { showSuccess, showError, showWarning, AlertComponent } = useCustomAlert()
   const [scheduledGames, setScheduledGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(false)
   const [currentTime, setCurrentTime] = useState(Date.now())
@@ -68,10 +82,21 @@ export function Lobby({ onGameStart }: LobbyProps) {
   }, [])
 
   const handleJoinGame = async (game: Game) => {
-    if (!user || !userProfile) return
+    if (!user || !userProfile || !database) return
+
+    // Check if user has sufficient balance
+    const currentBalance = userProfile.totalWinnings || 0
+    if (currentBalance < game.ticketPrice) {
+      showError(
+        "Мөнгө хүрэлцэхгүй байна",
+        `Тасалбарын үнэ: ${game.ticketPrice}₮\nТаны үлдэгдэл: ${currentBalance}₮\n\nТа дансаа цэнэглэнэ үү.`,
+      )
+      return
+    }
 
     setLoading(true)
     try {
+      // Create player object
       const player: Player = {
         uid: user.uid,
         playerId: userProfile.playerId,
@@ -82,10 +107,34 @@ export function Lobby({ onGameStart }: LobbyProps) {
         joinedAt: Date.now(),
       }
 
+      // Join the game first
       await joinGame(game.id, player)
+
+      // Deduct ticket price from user's balance
+      const newBalance = currentBalance - game.ticketPrice
+
+      // Update user's balance in database
+      const userRef = ref(database, `users/${user.uid}`)
+      await update(userRef, {
+        totalWinnings: newBalance,
+      })
+
+      // Update local state
+      await updateUserProfile({
+        totalWinnings: newBalance,
+      })
+
+      // Show success message
+      showSuccess(
+        "Тасалбар амжилттай худалдаж авлаа!",
+        `Тоглоом: GAME #${game.id.slice(-4)}\nТөлсөн дүн: ${game.ticketPrice}₮\nҮлдэгдэл: ${newBalance}₮`,
+      )
+
+      // Start the game
       onGameStart(game.id)
     } catch (error) {
       console.error("Тоглоомд нэгдэхэд алдаа гарлаа:", error)
+      showError("Алдаа гарлаа", "Тасалбар худалдаж авахад алдаа гарлаа. Дахин оролдоно уу.")
     } finally {
       setLoading(false)
     }
@@ -158,8 +207,13 @@ export function Lobby({ onGameStart }: LobbyProps) {
               <Crown className="h-6 w-6 text-amber-900" />
             </div>
 
-            {/* Center - Greeting with more left margin */}
-            <div className="text-amber-300 text-sm font-medium ml-8 flex-1 text-center">Сайн байна уу!...</div>
+            {/* Center - Balance Display */}
+            <div className="flex items-center gap-2 ml-8 flex-1 justify-center">
+              <Wallet className="h-4 w-4 text-amber-300" />
+              <div className="text-amber-300 text-sm font-bold">
+                {userProfile?.totalWinnings?.toLocaleString() || 0}₮
+              </div>
+            </div>
 
             {/* Right side - Name and Profile with spacing */}
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -201,6 +255,7 @@ export function Lobby({ onGameStart }: LobbyProps) {
             const ticketDeadlinePassed = isTicketDeadlinePassed(game)
             const gameStarted = isGameStarted(game)
             const playerJoined = isPlayerJoined(game)
+            const hasEnoughBalance = (userProfile?.totalWinnings || 0) >= game.ticketPrice
 
             return (
               <Card key={game.id} className="premium-card glow-pulse">
@@ -232,6 +287,16 @@ export function Lobby({ onGameStart }: LobbyProps) {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
+                  {/* Balance Warning */}
+                  {!hasEnoughBalance && !playerJoined && joinOpen && (
+                    <div className="gaming-card p-3 rounded-lg border border-red-500/30">
+                      <div className="flex items-center gap-2 text-red-300 text-sm">
+                        <Wallet className="h-4 w-4" />
+                        <span>Мөнгө хүрэлцэхгүй байна. Данс цэнэглэнэ үү.</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="stats-card p-3 text-center rounded-lg">
@@ -300,9 +365,15 @@ export function Lobby({ onGameStart }: LobbyProps) {
                   {/* Join Button */}
                   <Button
                     onClick={() => handleJoinGame(game)}
-                    disabled={!joinOpen || gameStarted || loading || playerJoined || ticketDeadlinePassed}
+                    disabled={
+                      !joinOpen || gameStarted || loading || playerJoined || ticketDeadlinePassed || !hasEnoughBalance
+                    }
                     className={`w-full h-12 font-bold ${
-                      playerJoined ? "bg-green-600 hover:bg-green-700 text-white" : "premium-button text-black"
+                      playerJoined
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : !hasEnoughBalance && joinOpen
+                          ? "bg-red-600 hover:bg-red-700 text-white"
+                          : "premium-button text-black"
                     }`}
                   >
                     {playerJoined ? (
@@ -320,6 +391,11 @@ export function Lobby({ onGameStart }: LobbyProps) {
                         <AlertTriangle className="mr-2 h-4 w-4" />
                         Хугацаа дууссан
                       </>
+                    ) : !hasEnoughBalance && joinOpen ? (
+                      <>
+                        <Wallet className="mr-2 h-4 w-4" />
+                        Мөнгө хүрэлцэхгүй
+                      </>
                     ) : !joinOpen ? (
                       <>
                         <Timer className="mr-2 h-4 w-4" />
@@ -333,7 +409,7 @@ export function Lobby({ onGameStart }: LobbyProps) {
                     ) : (
                       <>
                         <Target className="mr-2 h-4 w-4" />
-                        Тасалбар авах
+                        Тасалбар авах ({game.ticketPrice}₮)
                       </>
                     )}
                   </Button>
@@ -359,6 +435,9 @@ export function Lobby({ onGameStart }: LobbyProps) {
 
       {/* Bottom Navigation */}
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Custom Alert Component */}
+      <AlertComponent />
     </div>
   )
 }
