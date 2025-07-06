@@ -17,6 +17,20 @@ import { PlayerProfile } from "./player-profile"
 import { PlayerRank } from "./player-rank"
 import { Withdrawal } from "./withdrawal"
 
+const getGameTypeDisplay = (gameType?: string) => {
+  switch (gameType) {
+    case "individual":
+      return "Хувь сонгол"
+    case "voting":
+      return "Санал хураалт"
+    case "team":
+      return "Багийн тоглоом"
+    case "classic":
+    default:
+      return "Санал хураалт"
+  }
+}
+
 interface LobbyProps {
   onGameStart: (gameId: string) => void
 }
@@ -191,7 +205,7 @@ export function Lobby({ onGameStart }: LobbyProps) {
             return (
               <Card key={game.id} className="premium-card glow-pulse">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="coin-icon w-10 h-10 flex items-center justify-center">
                         <Trophy className="h-5 w-5 text-amber-900" />
@@ -203,12 +217,17 @@ export function Lobby({ onGameStart }: LobbyProps) {
                         </CardDescription>
                       </div>
                     </div>
-                    <Badge
-                      variant={gameStarted ? "destructive" : joinOpen ? "default" : "secondary"}
-                      className="text-xs"
-                    >
-                      {gameStarted ? "Эхэлсэн" : joinOpen ? "Нээлттэй" : "Хүлээгдэж байна"}
-                    </Badge>
+                    <div className="flex flex-col gap-1 items-end">
+                      <Badge
+                        variant={gameStarted ? "destructive" : joinOpen ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {gameStarted ? "Эхэлсэн" : joinOpen ? "Нээлттэй" : "Хүлээгдэж байна"}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-300">
+                        {getGameTypeDisplay(game.gameType)}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
 
