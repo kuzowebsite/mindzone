@@ -33,7 +33,7 @@ export interface Game {
   id: string
   hostId: string
   status: "scheduled" | "waiting" | "active" | "voting" | "ended"
-  gameType?: "classic" | "individual" // New field for game type
+  gameType?: "classic" | "individual" | "voting" | "team" // Expanded game type options
   players: Record<string, Player>
   currentChallenge?: Challenge
   challengeSubmissions?: Record<string, ChallengeSubmission>
