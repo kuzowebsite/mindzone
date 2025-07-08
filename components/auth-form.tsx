@@ -37,11 +37,6 @@ export function AuthForm() {
   })
 
   const handleSocialSignIn = async (provider: "google" | "facebook" | "apple") => {
-    if (!acceptedEULA || !acceptedAge) {
-      setError("Та бүх нөхцлийг хүлээн зөвшөөрөх ёстой")
-      return
-    }
-
     setSocialLoading(provider)
     setError("")
     setSuccess("")
@@ -326,7 +321,7 @@ export function AuthForm() {
                   {/* Google Login */}
                   <Button
                     onClick={() => handleSocialSignIn("google")}
-                    disabled={!acceptedEULA || !acceptedAge || socialLoading !== null}
+                    disabled={socialLoading !== null}
                     className="h-12 gaming-card border border-amber-500/30 hover:border-amber-400 bg-transparent text-white hover:bg-amber-500/10 transition-all duration-200"
                   >
                     {socialLoading === "google" ? (
@@ -359,7 +354,7 @@ export function AuthForm() {
                   {/* Facebook Login */}
                   <Button
                     onClick={() => handleSocialSignIn("facebook")}
-                    disabled={!acceptedEULA || !acceptedAge || socialLoading !== null}
+                    disabled={socialLoading !== null}
                     className="h-12 gaming-card border border-amber-500/30 hover:border-amber-400 bg-transparent text-white hover:bg-amber-500/10 transition-all duration-200"
                   >
                     {socialLoading === "facebook" ? (
@@ -377,7 +372,7 @@ export function AuthForm() {
                   {/* Apple Login */}
                   <Button
                     onClick={() => handleSocialSignIn("apple")}
-                    disabled={!acceptedEULA || !acceptedAge || socialLoading !== null}
+                    disabled={socialLoading !== null}
                     className="h-12 gaming-card border border-amber-500/30 hover:border-amber-400 bg-transparent text-white hover:bg-amber-500/10 transition-all duration-200"
                   >
                     {socialLoading === "apple" ? (
@@ -407,6 +402,9 @@ export function AuthForm() {
                   </Button>
                 </div>
               </div>
+              <p className="text-xs text-amber-200/70 text-center mt-2">
+                Нийгмийн сүлжээгээр нэвтрэх нь автоматаар нөхцлүүдийг хүлээн зөвшөөрсөнд тооцогдоно
+              </p>
 
               {/* Divider */}
               <div className="relative my-6">
