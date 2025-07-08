@@ -57,25 +57,42 @@ export function AuthForm() {
           throw new Error("Дэмжигдээгүй нэвтрэх арга")
       }
 
-      // Success message will be handled by auth state change
+      // If we get here, authentication was successful
+      console.log("Social login successful:", result)
+      // Don't set any success message - let auth state change handle redirect
     } catch (err: any) {
       console.error(`${provider} sign in error:`, err)
 
-      if (err.code === "auth/popup-closed-by-user") {
-        setError("Нэвтрэх цонх хаагдсан байна")
-      } else if (err.code === "auth/popup-blocked") {
+      // Only show error if authentication actually failed
+      // Don't show error for popup-closed-by-user as it might still be successful
+      if (err.code === "auth/popup-blocked") {
         setError("Popup цонх блоклогдсон байна. Браузерын тохиргоог шалгана уу")
       } else if (err.code === "auth/account-exists-with-different-credential") {
         setError("Энэ и-мэйл хаяг өөр нэвтрэх аргаар бүртгэгдсэн байна")
       } else if (err.code === "auth/network-request-failed") {
         setError("Интернэт холболтын алдаа. Холболтоо шалгаад дахин оролдоно уу")
-      } else {
-        setError(
-          `${provider.charAt(0).toUpperCase() + provider.slice(1)}-ээр нэвтрэх үед алдаа гарлаа: ${err.message || "Тодорхойгүй алдаа"}`,
-        )
+      } else if (err.code === "auth/cancelled-popup-request") {
+        // User cancelled, don't show error
+        console.log("User cancelled social login")
+      } else if (err.code === "auth/popup-closed-by-user") {
+        // Don't show error immediately - wait a moment to see if auth state changes
+        console.log("Popup closed by user, checking auth state...")
+        setTimeout(() => {
+          // Only show error if still loading after 2 seconds
+          if (socialLoading === provider) {
+            setError("Нэвтрэх цонх хаагдсан байна. Дахин оролдоно уу")
+            setSocialLoading(null)
+          }
+        }, 2000)
+        return // Don't clear loading state immediately
+      } else if (err.message && !err.message.includes("popup")) {
+        setError(`${provider.charAt(0).toUpperCase() + provider.slice(1)}-ээр нэвтрэх үед алдаа гарлаа: ${err.message}`)
       }
     } finally {
-      setSocialLoading(null)
+      // Only clear loading if we're not waiting for auth state change
+      if (!error.includes("хаагдсан")) {
+        setSocialLoading(null)
+      }
     }
   }
 
