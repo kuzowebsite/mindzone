@@ -36,6 +36,7 @@ export function useAuth() {
         setUser(user)
 
         if (user) {
+          console.log("Auth state changed - user logged in:", user.uid)
           // Get user profile from database
           const profileRef = ref(database, `users/${user.uid}`)
           const snapshot = await get(profileRef)
@@ -45,9 +46,13 @@ export function useAuth() {
             if (profile.gameWinnings === undefined) {
               profile.gameWinnings = 0
             }
+            console.log("User profile loaded:", profile)
             setUserProfile(profile)
+          } else {
+            console.log("No profile found for user, this might be a new social login user")
           }
         } else {
+          console.log("Auth state changed - user logged out")
           setUserProfile(null)
         }
       } catch (error) {
@@ -141,7 +146,14 @@ export function useAuth() {
       provider.addScope("email")
       provider.addScope("profile")
 
+      // Add custom parameters to avoid popup issues
+      provider.setCustomParameters({
+        prompt: "select_account",
+      })
+
+      console.log("Starting Google sign in...")
       const result = await signInWithPopup(auth, provider)
+      console.log("Google sign in successful:", result.user.uid)
 
       // Check if user profile exists, if not create one
       if (database) {
@@ -149,6 +161,7 @@ export function useAuth() {
         const snapshot = await get(profileRef)
 
         if (!snapshot.exists()) {
+          console.log("Creating new profile for Google user")
           // Create new user profile for social login
           const playerId = await generatePlayerId()
           const userProfile: UserProfile = {
@@ -177,7 +190,10 @@ export function useAuth() {
             role: "player",
             createdAt: Date.now(),
           })
+
+          console.log("New Google user profile created:", userProfile)
         } else {
+          console.log("Existing Google user, updating last login")
           // Update last login time
           const lastLoginRef = ref(database, `users/${result.user.uid}/lastLoginAt`)
           await set(lastLoginRef, Date.now())
@@ -200,7 +216,9 @@ export function useAuth() {
       const provider = new FacebookAuthProvider()
       provider.addScope("email")
 
+      console.log("Starting Facebook sign in...")
       const result = await signInWithPopup(auth, provider)
+      console.log("Facebook sign in successful:", result.user.uid)
 
       // Check if user profile exists, if not create one
       if (database) {
@@ -208,6 +226,7 @@ export function useAuth() {
         const snapshot = await get(profileRef)
 
         if (!snapshot.exists()) {
+          console.log("Creating new profile for Facebook user")
           // Create new user profile for social login
           const playerId = await generatePlayerId()
           const userProfile: UserProfile = {
@@ -236,7 +255,10 @@ export function useAuth() {
             role: "player",
             createdAt: Date.now(),
           })
+
+          console.log("New Facebook user profile created:", userProfile)
         } else {
+          console.log("Existing Facebook user, updating last login")
           // Update last login time
           const lastLoginRef = ref(database, `users/${result.user.uid}/lastLoginAt`)
           await set(lastLoginRef, Date.now())
@@ -260,7 +282,9 @@ export function useAuth() {
       provider.addScope("email")
       provider.addScope("name")
 
+      console.log("Starting Apple sign in...")
       const result = await signInWithPopup(auth, provider)
+      console.log("Apple sign in successful:", result.user.uid)
 
       // Check if user profile exists, if not create one
       if (database) {
@@ -268,6 +292,7 @@ export function useAuth() {
         const snapshot = await get(profileRef)
 
         if (!snapshot.exists()) {
+          console.log("Creating new profile for Apple user")
           // Create new user profile for social login
           const playerId = await generatePlayerId()
           const userProfile: UserProfile = {
@@ -296,7 +321,10 @@ export function useAuth() {
             role: "player",
             createdAt: Date.now(),
           })
+
+          console.log("New Apple user profile created:", userProfile)
         } else {
+          console.log("Existing Apple user, updating last login")
           // Update last login time
           const lastLoginRef = ref(database, `users/${result.user.uid}/lastLoginAt`)
           await set(lastLoginRef, Date.now())
