@@ -8,6 +8,10 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
 } from "firebase/auth"
 import { ref, set, get, update, push } from "firebase/database"
 import { auth, database } from "@/lib/firebase"
@@ -124,6 +128,185 @@ export function useAuth() {
       } else {
         throw new Error(error.message || "Нэвтрэх үед тодорхойгүй алдаа гарлаа")
       }
+    }
+  }
+
+  const signInWithGoogle = async () => {
+    if (!auth) {
+      throw new Error("Firebase системд холбогдох боломжгүй байна")
+    }
+
+    try {
+      const provider = new GoogleAuthProvider()
+      provider.addScope("email")
+      provider.addScope("profile")
+
+      const result = await signInWithPopup(auth, provider)
+
+      // Check if user profile exists, if not create one
+      if (database) {
+        const profileRef = ref(database, `users/${result.user.uid}`)
+        const snapshot = await get(profileRef)
+
+        if (!snapshot.exists()) {
+          // Create new user profile for social login
+          const playerId = await generatePlayerId()
+          const userProfile: UserProfile = {
+            uid: result.user.uid,
+            playerId,
+            displayName: result.user.displayName || "Google User",
+            email: result.user.email || "",
+            role: "player",
+            createdAt: Date.now(),
+            lastLoginAt: Date.now(),
+            gamesPlayed: 0,
+            totalWinnings: 0,
+            gameWinnings: 0,
+            highestScore: 0,
+            isActive: true,
+          }
+
+          await set(profileRef, userProfile)
+
+          // Also store in player index
+          const playerIndexRef = ref(database, `playerIndex/${playerId}`)
+          await set(playerIndexRef, {
+            uid: result.user.uid,
+            displayName: userProfile.displayName,
+            playerId,
+            role: "player",
+            createdAt: Date.now(),
+          })
+        } else {
+          // Update last login time
+          const lastLoginRef = ref(database, `users/${result.user.uid}/lastLoginAt`)
+          await set(lastLoginRef, Date.now())
+        }
+      }
+
+      return result
+    } catch (error: any) {
+      console.error("Google sign in error:", error)
+      throw error
+    }
+  }
+
+  const signInWithFacebook = async () => {
+    if (!auth) {
+      throw new Error("Firebase системд холбогдох боломжгүй байна")
+    }
+
+    try {
+      const provider = new FacebookAuthProvider()
+      provider.addScope("email")
+
+      const result = await signInWithPopup(auth, provider)
+
+      // Check if user profile exists, if not create one
+      if (database) {
+        const profileRef = ref(database, `users/${result.user.uid}`)
+        const snapshot = await get(profileRef)
+
+        if (!snapshot.exists()) {
+          // Create new user profile for social login
+          const playerId = await generatePlayerId()
+          const userProfile: UserProfile = {
+            uid: result.user.uid,
+            playerId,
+            displayName: result.user.displayName || "Facebook User",
+            email: result.user.email || "",
+            role: "player",
+            createdAt: Date.now(),
+            lastLoginAt: Date.now(),
+            gamesPlayed: 0,
+            totalWinnings: 0,
+            gameWinnings: 0,
+            highestScore: 0,
+            isActive: true,
+          }
+
+          await set(profileRef, userProfile)
+
+          // Also store in player index
+          const playerIndexRef = ref(database, `playerIndex/${playerId}`)
+          await set(playerIndexRef, {
+            uid: result.user.uid,
+            displayName: userProfile.displayName,
+            playerId,
+            role: "player",
+            createdAt: Date.now(),
+          })
+        } else {
+          // Update last login time
+          const lastLoginRef = ref(database, `users/${result.user.uid}/lastLoginAt`)
+          await set(lastLoginRef, Date.now())
+        }
+      }
+
+      return result
+    } catch (error: any) {
+      console.error("Facebook sign in error:", error)
+      throw error
+    }
+  }
+
+  const signInWithApple = async () => {
+    if (!auth) {
+      throw new Error("Firebase системд холбогдох боломжгүй байна")
+    }
+
+    try {
+      const provider = new OAuthProvider("apple.com")
+      provider.addScope("email")
+      provider.addScope("name")
+
+      const result = await signInWithPopup(auth, provider)
+
+      // Check if user profile exists, if not create one
+      if (database) {
+        const profileRef = ref(database, `users/${result.user.uid}`)
+        const snapshot = await get(profileRef)
+
+        if (!snapshot.exists()) {
+          // Create new user profile for social login
+          const playerId = await generatePlayerId()
+          const userProfile: UserProfile = {
+            uid: result.user.uid,
+            playerId,
+            displayName: result.user.displayName || "Apple User",
+            email: result.user.email || "",
+            role: "player",
+            createdAt: Date.now(),
+            lastLoginAt: Date.now(),
+            gamesPlayed: 0,
+            totalWinnings: 0,
+            gameWinnings: 0,
+            highestScore: 0,
+            isActive: true,
+          }
+
+          await set(profileRef, userProfile)
+
+          // Also store in player index
+          const playerIndexRef = ref(database, `playerIndex/${playerId}`)
+          await set(playerIndexRef, {
+            uid: result.user.uid,
+            displayName: userProfile.displayName,
+            playerId,
+            role: "player",
+            createdAt: Date.now(),
+          })
+        } else {
+          // Update last login time
+          const lastLoginRef = ref(database, `users/${result.user.uid}/lastLoginAt`)
+          await set(lastLoginRef, Date.now())
+        }
+      }
+
+      return result
+    } catch (error: any) {
+      console.error("Apple sign in error:", error)
+      throw error
     }
   }
 
@@ -478,6 +661,9 @@ export function useAuth() {
     error,
     signIn,
     signUp,
+    signInWithGoogle,
+    signInWithFacebook,
+    signInWithApple,
     logout,
     updateUserProfile,
     updateGameWinnings,
