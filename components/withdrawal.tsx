@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { TransferModal } from "@/components/modals/transfer-modal"
 import { DepositModal } from "@/components/modals/deposit-modal"
 import { WithdrawModal } from "@/components/modals/withdraw-modal"
+import { TransactionHistoryModal } from "@/components/modals/transaction-history-modal"
 import { useCustomAlert } from "@/components/ui/custom-alert"
 import { database } from "@/lib/firebase"
 import {
@@ -24,6 +25,7 @@ import {
   Plus,
   Save,
   X,
+  History,
 } from "lucide-react"
 
 export function Withdrawal() {
@@ -32,6 +34,7 @@ export function Withdrawal() {
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
   const { showError, showWarning, showSuccess, showInfo, AlertComponent } = useCustomAlert()
 
   // Account creation states
@@ -391,6 +394,17 @@ export function Withdrawal() {
                       <p className="text-xs text-amber-300/60">Дансны нэр</p>
                     </div>
                   </div>
+
+                  {/* History Button */}
+                  <Button
+                    onClick={() => setShowHistoryModal(true)}
+                    variant="outline"
+                    size="sm"
+                    className="gaming-card border-purple-500/30 text-purple-300 hover:bg-purple-500/20 bg-transparent"
+                  >
+                    <History className="mr-2 h-4 w-4" />
+                    Хуулга
+                  </Button>
                 </div>
 
                 {/* Account Number */}
@@ -529,6 +543,12 @@ export function Withdrawal() {
             maxAmount={totalWinnings}
             onWithdraw={handleWithdraw}
             internalAccount={internalAccount}
+          />
+
+          <TransactionHistoryModal
+            isOpen={showHistoryModal}
+            onClose={() => setShowHistoryModal(false)}
+            userProfile={userProfile}
           />
         </>
       )}
